@@ -3,7 +3,7 @@
   Assignment 1: Height Fields with Shaders.
   C++ starter code
 
-  Student username: <type your USC username here>
+  Student username: 8486068836
 */
 
 #include "basicPipelineProgram.h"
@@ -263,17 +263,19 @@ void initScene(int argc, char *argv[])
 
   glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
 
+  cout<<heightmapImage<<"\n";
+
   // modify the following code accordingly
   glm::vec3 triangle[3] = {
-    glm::vec3(0, 0, 0), 
-    glm::vec3(0, 1, 0),
-    glm::vec3(1, 0, 0)
+    glm::vec3(0, 0, -1), 
+    glm::vec3(1, 1, -1),
+    glm::vec3(0, 0, -1)
   };
 
   glm::vec4 color[3] = {
-    {0, 0, 1, 1},
     {1, 0, 0, 1},
     {0, 1, 0, 1},
+    {0, 0, 1, 1},
   };
 
   glGenBuffers(1, &triVertexBuffer);
