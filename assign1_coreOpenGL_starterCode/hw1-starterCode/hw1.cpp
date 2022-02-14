@@ -39,6 +39,8 @@ int rightMouseButton = 0; // 1 if pressed, 0 if not
 
 typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
 CONTROL_STATE controlState = ROTATE;
+typedef enum {POINT, LINE, SMOOTH } MODE_OF_RENDER;
+MODE_OF_RENDER renderState = POINT;
 
 // state of the world
 float landRotate[3] = { 0.0f, 0.0f, 0.0f };
@@ -57,6 +59,8 @@ int sizeTri;
 
 OpenGLMatrix matrix;
 BasicPipelineProgram * pipelineProgram;
+
+unsigned int VBO;
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -238,16 +242,46 @@ void keyboardFunc(unsigned char key, int x, int y)
   {
     case 27: // ESC key
       exit(0); // exit the program
-    break;
+      break;
 
     case ' ':
       cout << "You pressed the spacebar." << endl;
-    break;
+      break;
 
     case 'x':
       // take a screenshot
       saveScreenshot("screenshot.jpg");
-    break;
+      break;
+
+    case '1':
+     // GL_POINTS
+      renderState = POINT;
+      break;
+
+    case '2':
+     // GL_LINE
+      renderState = LINE;
+      break;
+
+    case '3':
+     // GL_TRIANGLES
+      renderState = SMOOTH;
+      break;
+
+    case '8':
+     // GLUT remap for translate
+      controlState = TRANSLATE;
+      break;
+
+    case '9':
+     // GLUT remap for ROTATE
+      controlState = ROTATE;
+      break;
+
+    case '0':
+    // GLUT remap for SCALE
+      controlState = SCALE;
+      break;
   }
 }
 
