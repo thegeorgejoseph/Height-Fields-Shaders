@@ -90,15 +90,32 @@ void displayFunc()
   matrix.LookAt(0, 0, 5, 0, 0, 0, 0, 1, 0);
 
   float m[16];
+  float ex,ey,ez,fx,fy,fz,ux,uy,uz;
+  ex = 0;
+  ey = 1.5;
+  ez = 1.5;
+  fx = 0;
+  fy = 0.3;
+  fz = 0;
+  ux = 0;
+  uy = 1;
+  uz = 0;
   matrix.SetMatrixMode(OpenGLMatrix::ModelView);
   matrix.LoadIdentity();
   matrix.Translate(landTranslate[0],landTranslate[1],landTranslate[2]);
+  matrix.Rotate(landRotate[0],1,0,0);
+  matrix.Rotate(landRotate[1],0,1,0);
+  matrix.Rotate(landRotate[2],0,0,1);
+  matrix.Scale(landScale[0],landScale[1],landScale[2]);
+  matrix.LookAt(ex,ey,ez,fx,fy,fz,ux,uy,uz);
   matrix.GetMatrix(m);
+  glUniformMatrix4fv(h_modelViewMatrix,1, GL_FALSE, m);
 
   float p[16];
   matrix.SetMatrixMode(OpenGLMatrix::Projection);
   matrix.GetMatrix(p);
-  //
+  glUniformMatrix4fv(h_modelViewMatrix,1, GL_FALSE, p);
+
   // bind shader
   pipelineProgram->Bind();
 
@@ -107,7 +124,7 @@ void displayFunc()
   pipelineProgram->SetProjectionMatrix(p);
 
   glBindVertexArray(triVertexArray);
-  glDrawArrays(GL_TRIANGLES, 0, sizeTri);
+  glDrawArrays(GL_TRIANGLES, 0, sizeTri); // this is what we use to render the triangle that we see on the screen so this is what we need to change
 
   glutSwapBuffers();
 }
@@ -208,14 +225,17 @@ void mouseButtonFunc(int button, int state, int x, int y)
   switch (button)
   {
     case GLUT_LEFT_BUTTON:
+      // cout << "LEFT_BUTTON_DOWN" << endl;
       leftMouseButton = (state == GLUT_DOWN);
     break;
 
     case GLUT_MIDDLE_BUTTON:
+      // cout << "MIDDLE_BUTTON_DOWN" << endl;
       middleMouseButton = (state == GLUT_DOWN);
     break;
 
     case GLUT_RIGHT_BUTTON:
+      // cout << "RIGHT_BUTTON_DOWN" << endl;
       rightMouseButton = (state == GLUT_DOWN);
     break;
   }
@@ -261,31 +281,37 @@ void keyboardFunc(unsigned char key, int x, int y)
 
     case 49:
      // GL_POINTS
+      cout<< "POINT RENDERING." << endl;
       renderState = POINT;
       break;
 
     case 50:
      // GL_LINE
+      cout << "LINE RENDERING." << endl; 
       renderState = LINE;
       break;
 
     case 51:
      // GL_TRIANGLES
+      cout << "SMOOTH RENDERING" << endl;
       renderState = SMOOTH;
       break;
 
     case 56:
      // GLUT remap for translate
+      // cout << "TRANSLATE" << endl;
       controlState = TRANSLATE;
       break;
 
     case 57:
      // GLUT remap for ROTATE
+      // cout << "ROTATE" << endl;
       controlState = ROTATE;
       break;
 
     case 48:
     // GLUT remap for SCALE
+      // cout << "SCALE" << endl;
       controlState = SCALE;
       break;
   }
