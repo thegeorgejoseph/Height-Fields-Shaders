@@ -61,6 +61,9 @@ OpenGLMatrix matrix;
 BasicPipelineProgram * pipelineProgram;
 
 unsigned int VBO;
+GLint h_modelViewMatrix, h_projectionMatrix;
+
+
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -295,21 +298,21 @@ void initScene(int argc, char *argv[])
     exit(EXIT_FAILURE);
   }
 
-  glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 
-  cout<<heightmapImage<<"\n";
+  // cout<<heightmapImage<<"\n";
 
   // modify the following code accordingly
   glm::vec3 triangle[3] = {
-    glm::vec3(0, 0, -1), 
-    glm::vec3(1, 1, -1),
-    glm::vec3(0, 0, -1)
+    glm::vec3(0, 0, 0), 
+    glm::vec3(0, 1, 0),
+    glm::vec3(1, 0, 0)
   };
 
   glm::vec4 color[3] = {
+    {0, 0, 1, 1},
     {1, 0, 0, 1},
     {0, 1, 0, 1},
-    {0, 0, 1, 1},
   };
 
   glGenBuffers(1, &triVertexBuffer);
@@ -338,6 +341,11 @@ void initScene(int argc, char *argv[])
   loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
   glEnableVertexAttribArray(loc);
   glVertexAttribPointer(loc, 4, GL_FLOAT, GL_FALSE, 0, (const void *)0);
+
+  GLuint program = 
+      pipelineProgram->GetProgramHandle();
+      h_modelViewMatrix = glGetUniformLocation(program, "modelViewMatrix");
+      h_projectionMatrix = glGetUniformLocation(program, "projectionMatrix");
 
   glEnable(GL_DEPTH_TEST);
 
