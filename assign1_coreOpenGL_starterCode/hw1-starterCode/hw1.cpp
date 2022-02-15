@@ -91,6 +91,8 @@ void displayFunc()
 
   float m[16];
   matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+  matrix.LoadIdentity();
+  matrix.Translate(landTranslate[0],landTranslate[1],landTranslate[2]);
   matrix.GetMatrix(m);
 
   float p[16];
@@ -127,6 +129,7 @@ void reshapeFunc(int w, int h)
   matrix.SetMatrixMode(OpenGLMatrix::Projection);
   matrix.LoadIdentity();
   matrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 100.0f);
+  matrix.SetMatrixMode(OpenGLMatrix::ModelView);
 }
 
 void mouseMotionDragFunc(int x, int y)
@@ -256,32 +259,32 @@ void keyboardFunc(unsigned char key, int x, int y)
       saveScreenshot("screenshot.jpg");
       break;
 
-    case '1':
+    case 49:
      // GL_POINTS
       renderState = POINT;
       break;
 
-    case '2':
+    case 50:
      // GL_LINE
       renderState = LINE;
       break;
 
-    case '3':
+    case 51:
      // GL_TRIANGLES
       renderState = SMOOTH;
       break;
 
-    case '8':
+    case 56:
      // GLUT remap for translate
       controlState = TRANSLATE;
       break;
 
-    case '9':
+    case 57:
      // GLUT remap for ROTATE
       controlState = ROTATE;
       break;
 
-    case '0':
+    case 48:
     // GLUT remap for SCALE
       controlState = SCALE;
       break;
