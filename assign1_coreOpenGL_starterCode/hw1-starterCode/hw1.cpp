@@ -103,9 +103,9 @@ void displayFunc()
   matrix.SetMatrixMode(OpenGLMatrix::ModelView);
   matrix.LoadIdentity();
   matrix.Translate(landTranslate[0],landTranslate[1],landTranslate[2]);
-  matrix.Rotate(landRotate[0],1,0,0);
-  matrix.Rotate(landRotate[1],0,1,0);
-  matrix.Rotate(landRotate[2],0,0,1);
+  matrix.Rotate(landRotate[0],1.0f,0.0f,0.0f);
+  matrix.Rotate(landRotate[1],0.0f,1.0f,0.0f);
+  matrix.Rotate(landRotate[2],0.0f,0.0f,1.0f);
   matrix.Scale(landScale[0],landScale[1],landScale[2]);
   matrix.LookAt(ex,ey,ez,fx,fy,fz,ux,uy,uz);
   matrix.GetMatrix(m);
