@@ -42,7 +42,7 @@ int middleMouseButton = 0; // 1 if pressed, 0 if not
 int rightMouseButton = 0; // 1 if pressed, 0 if not
 
 typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
-CONTROL_STATE controlState = ROTATE;
+CONTROL_STATE controlState = TRANSLATE;
 
 // state of the world
 float landRotate[3] = { 0.0f, 0.0f, 0.0f };
@@ -77,7 +77,7 @@ unsigned int pos_loc, color_loc, neighbour_loc;
 int globalVertices;
 
 float pixelScale = 256.0f;
-
+float grayscaleColor;
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -309,7 +309,7 @@ void initScene(int argc, char *argv[]) {
   width = heightmapImage->getWidth();
   vertices = height * width;
   heightFieldIndices = (height + 1) * (width*2);
-  indices = (height - 1) * (width*2 + 1);
+  indices = (height + 1) * (width*2);
   vector<float> pointPos(3*vertices);
   vector<float> pointCol(4*vertices);
   vector<int> pointIdx(indices);
@@ -346,13 +346,14 @@ void initScene(int argc, char *argv[]) {
   
   for (int i = 0; i < width; i++) {
     for (int j = 0; j < height; j++) {
-      pointPos[(j * width + i) * 3] = (float) i / width - 0.5;
+      pointPos[(j * width + i) * 3] = (float) i / width;
       pointPos[(j * width + i) * 3 + 1] = heightmapImage->getPixel(i, j, 0) / (5*maxHeight);
-      pointPos[(j * width + i) * 3 + 2] = (float) j / height - 0.5;
+      pointPos[(j * width + i) * 3 + 2] = (float) j / height;
       
-      pointCol[(j * width + i) * 4] = pointPos[(j * width + i) * 3] + 0.5;
-      pointCol[(j * width + i) * 4 + 1] = pointPos[(j * width + i) * 3 + 1];
-      pointCol[(j * width + i) * 4 + 2] = pointPos[(j * width + i) * 3 + 2] + 0.5;
+      grayscaleColor = heightmapImage->getPixel(i, j, 0) / pixelScale; 
+      pointCol[(j * width + i) * 4] = grayscaleColor ;
+      pointCol[(j * width + i) * 4 + 1] = grayscaleColor ;
+      pointCol[(j * width + i) * 4 + 2] = grayscaleColor + 255;
       pointCol[(j * width + i) * 4 + 3] = 1;
     }
   }
@@ -561,7 +562,7 @@ void createModelViewMatrix(){
   matrix.Rotate(landRotate[1], 0, 1, 0);
   matrix.Rotate(landRotate[2], 0, 0, 1);
   matrix.Scale(landScale[0], landScale[1], landScale[2]);
-  matrix.LookAt(0, 1.5, 1.5, 0, 0.1, 0, 0, 1, 0);
+  matrix.LookAt(3, 1.5, 1.0, 0.5, 0.3, 0.5, 0, 5, 0);
   // matrix.LookAt();
   matrix.GetMatrix(m);
   glUniformMatrix4fv(h_modelViewMatrix, 1, GL_FALSE, m);
