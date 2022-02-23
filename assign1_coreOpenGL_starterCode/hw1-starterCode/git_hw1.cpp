@@ -1,9 +1,8 @@
-﻿/*
+/*
   CSCI 420 Computer Graphics, USC
-  Assignment 1: Height Fields with Shaders.
+  Assignment 1: Height Fields
   C++ starter code
-
-  Student username: georgejo@usc.edu | 8486068836
+  Student username: <type your USC username here>
 */
 
 #include "basicPipelineProgram.h"
@@ -11,10 +10,12 @@
 #include "imageIO.h"
 #include "openGLHeader.h"
 #include "glutHeader.h"
+#include <OpenGL/gl3.h>
 
 #include <iostream>
 #include <cstring>
-#include <vector>
+#include <glm/gtc/type_ptr.hpp>
+
 #if defined(WIN32) || defined(_WIN32)
   #ifdef _DEBUG
     #pragma comment(lib, "glew32d.lib")
@@ -31,10 +32,6 @@
 
 using namespace std;
 
-void displayRendering();
-void createModelViewMatrix();
-void createProjectionMatrix();
-void populateHeightFieldPointsAndColors(int m, int n, int i);
 int mousePos[2]; // x,y coordinate of the mouse position
 
 int leftMouseButton = 0; // 1 if pressed, 0 if not 
@@ -42,40 +39,27 @@ int middleMouseButton = 0; // 1 if pressed, 0 if not
 int rightMouseButton = 0; // 1 if pressed, 0 if not
 
 typedef enum { ROTATE, TRANSLATE, SCALE } CONTROL_STATE;
-CONTROL_STATE controlState = ROTATE;
-
+CONTROL_STATE controlState = TRANSLATE;
 // state of the world
 float landRotate[3] = { 0.0f, 0.0f, 0.0f };
 float landTranslate[3] = { 0.0f, 0.0f, 0.0f };
 float landScale[3] = { 1.0f, 1.0f, 1.0f };
 
-typedef enum { POINTS, LINES, TRIANGLES } MODE_STATE;
-MODE_STATE render = POINTS;
+typedef enum { POINT, LINE, FILLED } RENDER_MODE;
+RENDER_MODE renderMode = LINE;
 
 int windowWidth = 1280;
 int windowHeight = 720;
 char windowTitle[512] = "CSCI 420 homework I";
 
 ImageIO * heightmapImage;
-
-//initialising VBO, EBO, VAO
-unsigned int PointVertexBufferObject, ColorVertexBufferObject, ElementBufferObject, VertexArrayObject, VertexBufferObject;
-vector<glm::vec3> heightFieldPoints;
-vector<glm::vec4> heightFieldColors;
-int vertices, indices, heightFieldIndices;
-int c = 0;
-int height,width;
-OpenGLMatrix matrix;
-BasicPipelineProgram * pipelineProgram;
-
-
-int h_modelViewMatrix, h_projectionMatrix;
-unsigned int pos_loc, color_loc;
-
-int globalVertices;
-
-float pixelScale = 256.0f;
-
+unsigned int VBO, EBO, VAO;
+OpenGLMatrix openGLMatrix;
+BasicPipelineProgram pipelineProgram;
+GLuint program;
+GLint h_modelViewMatrix, h_projectionMatrix;
+int vertexNum, indexNum, restartIndex;
+GLuint pos_loc, color_loc;
 
 // write a screenshot to the specified filename
 void saveScreenshot(const char * filename)
@@ -92,28 +76,62 @@ void saveScreenshot(const char * filename)
   delete [] screenshotData;
 }
 
+void renderFunc()
+{
+  switch (renderMode)
+  {
+    case POINT:
+      glDrawElements(GL_POINTS, indexNum, GL_UNSIGNED_INT, 0);
+      break;
+    case LINE:
+      glDrawElements(GL_TRIANGLE_STRIP, indexNum, GL_UNSIGNED_INT, 0);
+      glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+      break;
+    case FILLED:
+      glDrawElements(GL_TRIANGLE_STRIP, indexNum, GL_UNSIGNED_INT, 0);
+      glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+      break;
+  }
+}
+
 void displayFunc()
 {
   // render some stuff...
+  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
   glEnable(GL_PRIMITIVE_RESTART);
-  glPrimitiveRestartIndex(globalVertices);
+  glPrimitiveRestartIndex(restartIndex);
   
-  pipelineProgram->Bind();
-  glBindVertexArray(VertexArrayObject);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ElementBufferObject);
-  glBindBuffer(GL_ARRAY_BUFFER, VertexBufferObject);
+  pipelineProgram.Bind();
+  glBindVertexArray(VAO);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
   
   glEnableVertexAttribArray(pos_loc);
   glVertexAttribPointer(pos_loc, 3, GL_FLOAT, GL_FALSE, 3* sizeof(float), (void*) 0);
   glEnableVertexAttribArray(color_loc);
-  glVertexAttribPointer(color_loc, 4, GL_FLOAT, GL_FALSE, 4* sizeof(float), (void*) (3 * vertices * sizeof(float)));
+  glVertexAttribPointer(color_loc, 4, GL_FLOAT, GL_FALSE, 4* sizeof(float), (void*) (3 * vertexNum * sizeof(float)));
   
-  createModelViewMatrix();
-  createProjectionMatrix();
+  float m[16];
+  openGLMatrix.SetMatrixMode(OpenGLMatrix::ModelView);
+  openGLMatrix.LoadIdentity();
+  openGLMatrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
+  openGLMatrix.Rotate(landRotate[0], 1, 0, 0);
+  openGLMatrix.Rotate(landRotate[1], 0, 1, 0);
+  openGLMatrix.Rotate(landRotate[2], 0, 0, 1);
+  openGLMatrix.Scale(landScale[0], landScale[1], landScale[2]);
+  // openGLMatrix.LookAt(0.05,0.4,0.05,  0,0,0,  0,1,0);
+  // openGLMatrix.LookAt(0.5, 0.5, 1.5, 0.5, 0.5, 0.5, 0, 1, 0);
+  openGLMatrix.LookAt(0, 1.5, 1.5, 0, 0.3, 0, 0, 1, 0);
+  openGLMatrix.GetMatrix(m);
+  glUniformMatrix4fv(h_modelViewMatrix, 1, GL_FALSE, m);
   
+  float p[16];
+  openGLMatrix.SetMatrixMode(OpenGLMatrix::Projection);
+  openGLMatrix.GetMatrix(p);
+  glUniformMatrix4fv(h_projectionMatrix, 1, GL_FALSE, p);
   
-  displayRendering();
+  renderFunc();
   
   glBindVertexArray(0);
   glutSwapBuffers();
@@ -134,10 +152,10 @@ void reshapeFunc(int w, int h)
   glViewport(0, 0, w, h);
   
   // setup perspective matrix...
-  matrix.SetMatrixMode(OpenGLMatrix::Projection);
-  matrix.LoadIdentity();
-  matrix.Perspective(54.0f, (float)w / (float)h, 0.01f, 1000.0f);
-  matrix.SetMatrixMode(OpenGLMatrix::ModelView);
+  openGLMatrix.SetMatrixMode(OpenGLMatrix::Projection);
+  openGLMatrix.LoadIdentity();
+  openGLMatrix.Perspective(45.0, 1.0 * w / h, 0.01, 10.0);
+  openGLMatrix.SetMatrixMode(OpenGLMatrix::ModelView);
 }
 
 void mouseMotionDragFunc(int x, int y)
@@ -252,15 +270,15 @@ void keyboardFunc(unsigned char key, int x, int y)
     
     // change render mode
     case 'p':
-      render = POINTS;
+      renderMode = POINT;
       break;
       
     case 'l':
-      render = LINES;
+      renderMode = LINE;
       break;
       
     case 'f':
-      render = TRIANGLES;
+      renderMode = FILLED;
       break;
     
     // glut cannot keep track of the CTRL key for Mac (which is Command on Mac), change the detection method
@@ -286,113 +304,76 @@ void initScene(int argc, char *argv[]) {
     cout << "Error reading image " << argv[1] << "." << endl;
     exit(EXIT_FAILURE);
   }
-
-  glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+  glEnable(GL_DEPTH_TEST);
   
-  
-  height = heightmapImage->getHeight();
-  width = heightmapImage->getWidth();
-  vertices = height * width;
-  heightFieldIndices = (height + 1) * (width*2);
-  indices = (height - 1) * (width*2 + 1);
-  vector<float> pointPos(3*vertices);
-  vector<float> pointCol(4*vertices);
-  vector<int> pointIdx(indices);
+  // do additional initialization here...
+  // generate model vertices
+  int imageHeight = heightmapImage->getHeight();
+  int imageWidth = heightmapImage->getWidth();
+  vertexNum = imageHeight * imageWidth;
+  indexNum = (imageHeight - 1) * (imageWidth*2 + 1);
+  float pointPos[3 * vertexNum];
+  float pointCol[4 * vertexNum];
+  int pointIdx[indexNum];
   
   unsigned char *pixels = heightmapImage->getPixels();
-  float maxHeight = *max_element(pixels, pixels + vertices);
-
-  heightFieldPoints.resize(3*heightFieldIndices);
-  heightFieldColors.resize(4*heightFieldIndices);
+  float maxHeight = *max_element(pixels, pixels + vertexNum);
+  // float minHeight = *min_element(pixels, pixels+verticesNum);
   
-  float pixelHeight;
-
-  int m,n;
-  for (int i = 0; i <= height; ++i){
-    for (int j = 0; j< width; ++j){
-      if (i % 2 == 1){
-        n = width - j - 1;
-      } else{
-        n = j;
-      }
-      if (height - 1 > i){
-        m = i;
-      } else{
-        m = height - 1;
-      }
-
-      pixelHeight = heightmapImage->getPixel(m,n,0);
-
-      populateHeightFieldPointsAndColors(m,n,c);
+  for (int i = 0; i < imageWidth; i++) {
+    for (int j = 0; j < imageHeight; j++) {
+      pointPos[(j * imageWidth + i) * 3] = (float) i / imageWidth - 0.5;
+      pointPos[(j * imageWidth + i) * 3 + 1] = heightmapImage->getPixel(i, j, 0) / maxHeight;
+      pointPos[(j * imageWidth + i) * 3 + 2] = (float) j / imageHeight - 0.5;
       
-      c += 1;
-    }
-
-  }
-  
-  for (int i = 0; i < width; i++) {
-    for (int j = 0; j < height; j++) {
-      pointPos[(j * width + i) * 3] = (float) i / width - 0.5;
-      pointPos[(j * width + i) * 3 + 1] = heightmapImage->getPixel(i, j, 0) / (5*maxHeight);
-      pointPos[(j * width + i) * 3 + 2] = (float) j / height - 0.5;
-      
-      pointCol[(j * width + i) * 4] = pointPos[(j * width + i) * 3] + 0.5;
-      pointCol[(j * width + i) * 4 + 1] = pointPos[(j * width + i) * 3 + 1];
-      pointCol[(j * width + i) * 4 + 2] = pointPos[(j * width + i) * 3 + 2] + 0.5;
-      pointCol[(j * width + i) * 4 + 3] = 1;
+      pointCol[(j * imageWidth + i) * 4] = pointPos[(j * imageWidth + i) * 3] + 0.5;
+      pointCol[(j * imageWidth + i) * 4 + 1] = pointPos[(j * imageWidth + i) * 3 + 1];
+      pointCol[(j * imageWidth + i) * 4 + 2] = pointPos[(j * imageWidth + i) * 3 + 2] + 0.5;
+      pointCol[(j * imageWidth + i) * 4 + 3] = 1;
     }
   }
   
   // init facets index for triangle
-  globalVertices = vertices;
+  restartIndex = vertexNum;
   bool isDown = true;
-  for (int row = 0; row < height - 1; row++) {
-    pointIdx[row * (width*2 + 1)] = (row) * width;
-    for (int col = 1; col < width*2; col++)
+  for (int row = 0; row < imageHeight - 1; row++) {
+    pointIdx[row * (imageWidth*2 + 1)] = (row) * imageWidth;
+    for (int col = 1; col < imageWidth*2; col++)
     {
       if (isDown)
-        pointIdx[row * (width*2 + 1) + col] = pointIdx[row * (width*2 + 1) + col - 1] + width;
+        pointIdx[row * (imageWidth*2 + 1) + col] = pointIdx[row * (imageWidth*2 + 1) + col - 1] + imageWidth;
       else
-        pointIdx[row * (width*2 + 1) + col] = pointIdx[row * (width*2 + 1) + col - 1] - (width - 1);
+        pointIdx[row * (imageWidth*2 + 1) + col] = pointIdx[row * (imageWidth*2 + 1) + col - 1] - (imageWidth - 1);
       
       isDown = !isDown;
     }
     isDown = true;
-    pointIdx[row * (width*2 + 1) + width*2] =vertices;
+    pointIdx[row * (imageWidth*2 + 1) + imageWidth*2] =vertexNum;
   }
   
-  // make the VBO
-  glGenBuffers(1, &VertexBufferObject);
-  glBindBuffer(GL_ARRAY_BUFFER, VertexBufferObject);
-  glBufferData(GL_ARRAY_BUFFER, 3 * vertices * sizeof(float) + 4 * vertices * sizeof(float), NULL, GL_STATIC_DRAW);
-  glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * vertices * sizeof(float), &pointPos[0]);
-  glBufferSubData(GL_ARRAY_BUFFER, 3 * vertices * sizeof(float), 4 * vertices * sizeof(float), &pointCol[0]);
-
   // init the program
-  pipelineProgram = new BasicPipelineProgram;
-  int ret = pipelineProgram->Init(shaderBasePath);
-  if (ret != 0) abort();
-
+  pipelineProgram.Init("../openGLHelper-starterCode");
+  pipelineProgram.Bind();
+  program = pipelineProgram.GetProgramHandle();
+  h_modelViewMatrix = glGetUniformLocation(program, "modelViewMatrix");
+  h_projectionMatrix = glGetUniformLocation(program, "projectionMatrix");
+  pos_loc = glGetAttribLocation(program, "position");
+  color_loc = glGetAttribLocation(program, "color");
+  
   // make the VAO
-  glGenVertexArrays(1, &VertexArrayObject);
-  glBindVertexArray(VertexArrayObject);
-
- 
-  pos_loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
-  color_loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
-
-  glGenBuffers(1, &ElementBufferObject);
-  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ElementBufferObject);
-  glBufferData(GL_ELEMENT_ARRAY_BUFFER,  (height - 1) * (width*2 + 1) * sizeof(int), &pointIdx[0], GL_STATIC_DRAW);
+  glGenVertexArrays(1, &VAO);
+  glBindVertexArray(VAO);
+  // make the VBO
+  glGenBuffers(1, &VBO);
+  glBindBuffer(GL_ARRAY_BUFFER, VBO);
+  glBufferData(GL_ARRAY_BUFFER, 3 * vertexNum * sizeof(float) + 4 * vertexNum * sizeof(float), NULL, GL_STATIC_DRAW);
+  glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * vertexNum * sizeof(float), pointPos);
+  glBufferSubData(GL_ARRAY_BUFFER, 3 * vertexNum * sizeof(float), 4 * vertexNum * sizeof(float), pointCol);
+  
+  glGenBuffers(1, &EBO);
+  glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
+  glBufferData(GL_ELEMENT_ARRAY_BUFFER,  (imageHeight - 1) * (imageWidth*2 + 1) * sizeof(int), pointIdx, GL_STATIC_DRAW);
   glBindBuffer(GL_ARRAY_BUFFER, 0);
-
-  h_modelViewMatrix = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "modelViewMatrix");
-  h_projectionMatrix = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "projectionMatrix");
-
-
-  glEnable(GL_DEPTH_TEST);
-
-  std::cout << "GL error: " << glGetError() << std::endl;
   
 }
 
@@ -423,11 +404,6 @@ int main(int argc, char *argv[])
   cout << "OpenGL Version: " << glGetString(GL_VERSION) << endl;
   cout << "OpenGL Renderer: " << glGetString(GL_RENDERER) << endl;
   cout << "Shading Language Version: " << glGetString(GL_SHADING_LANGUAGE_VERSION) << endl;
-
-  #ifdef __APPLE__
-    // This is needed on recent Mac OS X versions to correctly display the window.
-    glutReshapeWindow(windowWidth - 1, windowHeight - 1);
-  #endif
 
   // tells glut to use a particular display function to redraw 
   glutDisplayFunc(displayFunc);
@@ -462,56 +438,4 @@ int main(int argc, char *argv[])
 
   // sink forever into the glut loop
   glutMainLoop();
-}
-
-void displayRendering()
-{
-  switch (render)
-  {
-    case LINES:
-      glDrawElements(GL_LINE_STRIP, indices, GL_UNSIGNED_INT, 0);
-      break;
-    case TRIANGLES:
-      glDrawElements(GL_TRIANGLE_STRIP, indices, GL_UNSIGNED_INT, 0);
-      break;
-    case POINTS:
-      glDrawElements(GL_POINTS, indices, GL_UNSIGNED_INT, 0);
-      break;
-    
-  }
-}
-
-void createModelViewMatrix(){
-  float m[16];
-  matrix.SetMatrixMode(OpenGLMatrix::ModelView);
-  matrix.LoadIdentity();
-  matrix.Translate(landTranslate[0], landTranslate[1], landTranslate[2]);
-  matrix.Rotate(landRotate[0], 1, 0, 0);
-  matrix.Rotate(landRotate[1], 0, 1, 0);
-  matrix.Rotate(landRotate[2], 0, 0, 1);
-  matrix.Scale(landScale[0], landScale[1], landScale[2]);
-  matrix.LookAt(0, 1.5, 1.5, 0, 0.1, 0, 0, 1, 0);
-  // matrix.LookAt();
-  matrix.GetMatrix(m);
-  glUniformMatrix4fv(h_modelViewMatrix, 1, GL_FALSE, m);
-}
-
-void createProjectionMatrix(){
-  float p[16];
-  matrix.SetMatrixMode(OpenGLMatrix::Projection);
-  matrix.GetMatrix(p);
-  glUniformMatrix4fv(h_projectionMatrix, 1, GL_FALSE, p);
-}
-
-void populateHeightFieldPointsAndColors(int m, int n, int i){
-  int heightFieldPointSize = heightFieldPoints.size();
-  int heightFieldColorSize = heightFieldColors.size();
-  float pixelHeight = heightmapImage->getPixel(m,n,0);
-  float negativePixelHeight = heightmapImage->getPixel(n,m,0);
-  float value = pixelHeight/pixelScale;
-  heightFieldPoints[i] = glm::vec3(m,(1.0f * 20)*value,n);
-  heightFieldColors[i] = glm::vec4(value,value,value,1.0f);
-  value = negativePixelHeight / pixelScale;
-  heightFieldPoints[heightFieldPointSize - i - 1] = glm::vec3(n, (1.0f * 20) * value,m);
-  heightFieldColors[heightFieldColorSize - i - 1] = glm::vec4(value, value, value, 1.0f);
 }
