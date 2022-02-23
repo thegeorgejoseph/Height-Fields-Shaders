@@ -29,11 +29,16 @@ void BasicPipelineProgram::SetProjectionMatrix(const float * m)
   glUniformMatrix4fv(h_projectionMatrix, 1, GL_FALSE, m);
 }
 
+void BasicPipelineProgram::SetSmoothening(int i){
+  glUniform1i(h_smoothen,i);
+}
+
 int BasicPipelineProgram::SetShaderVariableHandles() 
 {
   // Set h_modelViewMatrix and h_projectionMatrix.
   SET_SHADER_VARIABLE_HANDLE(modelViewMatrix);
   SET_SHADER_VARIABLE_HANDLE(projectionMatrix);
+  SET_SHADER_VARIABLE_HANDLE(smoothen);
   return 0;
 }
 
