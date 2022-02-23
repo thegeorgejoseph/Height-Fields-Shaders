@@ -49,8 +49,10 @@ float landRotate[3] = { 0.0f, 0.0f, 0.0f };
 float landTranslate[3] = { 0.0f, 0.0f, 0.0f };
 float landScale[3] = { 1.0f, 1.0f, 1.0f };
 
-typedef enum { POINTS, LINES, TRIANGLES } MODE_STATE;
+typedef enum { POINTS, LINES, TRIANGLES, SMOOTH } MODE_STATE;
 MODE_STATE render = POINTS;
+
+int smoothen ;
 
 int windowWidth = 1280;
 int windowHeight = 720;
@@ -59,7 +61,7 @@ char windowTitle[512] = "CSCI 420 homework I";
 ImageIO * heightmapImage;
 
 //initialising VBO, EBO, VAO
-unsigned int PointVertexBufferObject, ColorVertexBufferObject, ElementBufferObject, VertexArrayObject, VertexBufferObject;
+unsigned int PointVertexBufferObject, ColorVertexBufferObject, ElementBufferObject, VertexArrayObject, VertexBufferObject, NeighbourVertexBufferObject;
 vector<glm::vec3> heightFieldPoints;
 vector<glm::vec4> heightFieldColors;
 int vertices, indices, heightFieldIndices;
@@ -70,7 +72,7 @@ BasicPipelineProgram * pipelineProgram;
 
 
 int h_modelViewMatrix, h_projectionMatrix;
-unsigned int pos_loc, color_loc;
+unsigned int pos_loc, color_loc, neighbour_loc;
 
 int globalVertices;
 
@@ -108,11 +110,17 @@ void displayFunc()
   glVertexAttribPointer(pos_loc, 3, GL_FLOAT, GL_FALSE, 3* sizeof(float), (void*) 0);
   glEnableVertexAttribArray(color_loc);
   glVertexAttribPointer(color_loc, 4, GL_FLOAT, GL_FALSE, 4* sizeof(float), (void*) (3 * vertices * sizeof(float)));
+  if (smoothen == 1){
+    glBindBuffer(GL_ARRAY_BUFFER, NeighbourVertexBufferObject);
+    glEnableVertexAttribArray(neighbour_loc);
+    glVertexAttribPointer(neighbour_loc, 4, GL_FLOAT, GL_FALSE, 4 *  sizeof(float), (void*) 0);
+  }
   
   createModelViewMatrix();
   createProjectionMatrix();
   
-  
+  pipelineProgram->SetSmoothening(smoothen);
+
   displayRendering();
   
   glBindVertexArray(0);
@@ -251,18 +259,25 @@ void keyboardFunc(unsigned char key, int x, int y)
     break;
     
     // change render mode
-    case 'p':
+    case '1':
       render = POINTS;
+      smoothen = 0;
       break;
       
-    case 'l':
+    case '2':
       render = LINES;
+      smoothen = 0;
       break;
       
-    case 'f':
+    case '3':
       render = TRIANGLES;
+      smoothen = 0;
       break;
     
+    case '4':
+      render = SMOOTH;
+      smoothen = 1;
+      break;
     // glut cannot keep track of the CTRL key for Mac (which is Command on Mac), change the detection method
     case 't':
       controlState = TRANSLATE;
@@ -298,37 +313,36 @@ void initScene(int argc, char *argv[]) {
   vector<float> pointPos(3*vertices);
   vector<float> pointCol(4*vertices);
   vector<int> pointIdx(indices);
+  vector<float> neighbours(4*vertices);
   
   unsigned char *pixels = heightmapImage->getPixels();
   float maxHeight = *max_element(pixels, pixels + vertices);
 
-  heightFieldPoints.resize(3*heightFieldIndices);
-  heightFieldColors.resize(4*heightFieldIndices);
   
-  float pixelHeight;
+  // float pixelHeight;
 
-  int m,n;
-  for (int i = 0; i <= height; ++i){
-    for (int j = 0; j< width; ++j){
-      if (i % 2 == 1){
-        n = width - j - 1;
-      } else{
-        n = j;
-      }
-      if (height - 1 > i){
-        m = i;
-      } else{
-        m = height - 1;
-      }
+  // int m,n;
+  // for (int i = 0; i <= height; ++i){
+  //   for (int j = 0; j< width; ++j){
+  //     if (i % 2 == 1){
+  //       n = width - j - 1;
+  //     } else{
+  //       n = j;
+  //     }
+  //     if (height - 1 > i){
+  //       m = i;
+  //     } else{
+  //       m = height - 1;
+  //     }
 
-      pixelHeight = heightmapImage->getPixel(m,n,0);
+  //     pixelHeight = heightmapImage->getPixel(m,n,0);
 
-      populateHeightFieldPointsAndColors(m,n,c);
+  //     populateHeightFieldPointsAndColors(m,n,c);
       
-      c += 1;
-    }
+  //     c += 1;
+  //   }
 
-  }
+  // }
   
   for (int i = 0; i < width; i++) {
     for (int j = 0; j < height; j++) {
@@ -342,7 +356,46 @@ void initScene(int argc, char *argv[]) {
       pointCol[(j * width + i) * 4 + 3] = 1;
     }
   }
-  
+
+  for (int i = 0; i< width; i++){
+    for (int j = 0; j < height; j++){
+      float left,right,up,down;
+      if (i == 0){
+        up = pointPos[(j * width + (i+1)) * 3 + 1];
+      }
+      else{
+       up = pointPos[(j * width + (i-1)) * 3 + 1]; 
+      }
+
+      if (j == 0){
+        left = pointPos[((j+1) * width + (i)) * 3 + 1];
+      }
+      else{
+       left = pointPos[((j-1) * width + (i)) * 3 + 1]; 
+      }
+
+      if (i == width - 1){
+       down = pointPos[(j * width + (i-1)) * 3 + 1];  
+      }
+      else{
+       down = pointPos[(j * width + (i+1)) * 3 + 1];  
+      }
+
+      if (j == height - 1){
+        right = pointPos[((j-1) * width + (i)) * 3 + 1];
+      }
+      else{
+       right = pointPos[((j+1) * width + (i)) * 3 + 1]; 
+      }
+
+      neighbours[(j * width + i) * 4] = up;
+      neighbours[(j * width + i) * 4  + 1] = down;
+      neighbours[(j * width + i) * 4  + 2] = left;
+      neighbours[(j * width + i) * 4  + 3] = right;
+    }
+  }  
+
+
   // init facets index for triangle
   globalVertices = vertices;
   bool isDown = true;
@@ -362,11 +415,24 @@ void initScene(int argc, char *argv[]) {
   }
   
   // make the VBO
+
+  glGenBuffers(1, &PointVertexBufferObject);
+  glBindBuffer(GL_ARRAY_BUFFER, PointVertexBufferObject);
+  glBufferData(GL_ARRAY_BUFFER, heightFieldPoints.size() * sizeof(glm::vec3) , &heightFieldPoints[0], GL_STATIC_DRAW);
+
+  glGenBuffers(1, &ColorVertexBufferObject);
+  glBindBuffer(GL_ARRAY_BUFFER, ColorVertexBufferObject);
+  glBufferData(GL_ARRAY_BUFFER, heightFieldColors.size() * sizeof(glm::vec4) , &heightFieldColors[0], GL_STATIC_DRAW);
+
   glGenBuffers(1, &VertexBufferObject);
   glBindBuffer(GL_ARRAY_BUFFER, VertexBufferObject);
   glBufferData(GL_ARRAY_BUFFER, 3 * vertices * sizeof(float) + 4 * vertices * sizeof(float), NULL, GL_STATIC_DRAW);
   glBufferSubData(GL_ARRAY_BUFFER, 0, 3 * vertices * sizeof(float), &pointPos[0]);
   glBufferSubData(GL_ARRAY_BUFFER, 3 * vertices * sizeof(float), 4 * vertices * sizeof(float), &pointCol[0]);
+  
+  glGenBuffers(1, &NeighbourVertexBufferObject);
+  glBindBuffer(GL_ARRAY_BUFFER, NeighbourVertexBufferObject);
+  glBufferData(GL_ARRAY_BUFFER, 4 * vertices * sizeof(float) , &neighbours[0], GL_STATIC_DRAW);
 
   // init the program
   pipelineProgram = new BasicPipelineProgram;
@@ -380,6 +446,7 @@ void initScene(int argc, char *argv[]) {
  
   pos_loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "position");
   color_loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "color");
+  neighbour_loc = glGetAttribLocation(pipelineProgram->GetProgramHandle(), "neighbour"); 
 
   glGenBuffers(1, &ElementBufferObject);
   glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ElementBufferObject);
@@ -388,6 +455,7 @@ void initScene(int argc, char *argv[]) {
 
   h_modelViewMatrix = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "modelViewMatrix");
   h_projectionMatrix = glGetUniformLocation(pipelineProgram->GetProgramHandle(), "projectionMatrix");
+
 
 
   glEnable(GL_DEPTH_TEST);
@@ -477,6 +545,9 @@ void displayRendering()
     case POINTS:
       glDrawElements(GL_POINTS, indices, GL_UNSIGNED_INT, 0);
       break;
+    case SMOOTH:
+      glDrawElements(GL_TRIANGLE_STRIP, indices, GL_UNSIGNED_INT, 0);
+        break; 
     
   }
 }
