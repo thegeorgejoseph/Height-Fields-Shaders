@@ -30,6 +30,7 @@ void BasicPipelineProgram::SetProjectionMatrix(const float * m)
 }
 
 void BasicPipelineProgram::SetSmoothening(int i){
+  // For modifying vertex shader
   glUniform1i(h_smoothen,i);
 }
 
